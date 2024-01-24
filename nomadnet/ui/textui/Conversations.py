@@ -20,7 +20,7 @@ class ConversationDisplayShortcuts():
     def __init__(self, app):
         self.app = app
 
-        self.widget = urwid.AttrMap(urwid.Text("[C-d] Send  [C-p] Paper Msg  [C-t] Title  [C-k] Clear  [C-q] Close  [C-u] Purge  [C-x] Clear History  [C-o] Sort"), "shortcutbar")
+        self.widget = urwid.AttrMap(urwid.Text("[C-d] Send  [C-p] Paper Msg  [C-t] Title  [C-k] Clear  [C-q] Close  [C-f] Purge Failed  [C-x] Clear History  [C-o] Sort"), "shortcutbar")
 
 class ConversationsArea(urwid.LineBox):
     def keypress(self, size, key):
@@ -1108,6 +1108,19 @@ class ConversationWidget(urwid.WidgetWrap):
                 return
             self.content_editor.set_edit_pos(0)
         elif key == "ctrl u":
+            if self.full_editor_active:
+                return
+            cursor_pos = self.content_editor.edit_pos
+            content = self.content_editor.get_edit_text()
+            self.content_editor.set_edit_text(content[cursor_pos:])
+            self.content_editor.set_edit_pos(0)
+        elif key == "ctrl k":
+            if self.full_editor_active:
+                return
+            cursor_pos = self.content_editor.edit_pos
+            content = self.content_editor.get_edit_text()
+            self.content_editor.set_edit_text(content[:cursor_pos])
+        elif key == "ctrl f":
             self.conversation.purge_failed()
             self.conversation_changed(None)
         elif key == "ctrl t":
