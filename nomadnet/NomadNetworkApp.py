@@ -430,11 +430,15 @@ class NomadNetworkApp:
 
         RNS.log("Starting job scheduler now", RNS.LOG_DEBUG)
         while self.should_run_jobs:
-            now = time.time()
-            
-            if now > self.peer_settings["last_lxmf_sync"] + self.lxmf_sync_interval:
-                RNS.log("Initiating automatic LXMF sync", RNS.LOG_VERBOSE)
-                self.request_lxmf_sync(limit=self.lxmf_sync_limit)
+            try:
+                now = time.time()
+
+                if now > self.peer_settings["last_lxmf_sync"] + self.lxmf_sync_interval:
+                    RNS.log("Initiating automatic LXMF sync", RNS.LOG_VERBOSE)
+                    self.request_lxmf_sync(limit=self.lxmf_sync_limit)
+
+            except Exception as e:
+                RNS.log("Error in NomadNet job scheduler: "+str(e), RNS.LOG_ERROR)
 
             time.sleep(self.job_interval)
 

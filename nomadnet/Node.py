@@ -124,7 +124,7 @@ class Node:
 
             try:
                 if os.access(allowed_path, os.X_OK):
-                    allowed_result = subprocess.run([allowed_path], stdout=subprocess.PIPE)
+                    allowed_result = subprocess.run([allowed_path], stdout=subprocess.PIPE, timeout=10)
                     allowed_input = allowed_result.stdout
 
                 else:
@@ -173,7 +173,7 @@ class Node:
                             if isinstance(e, str) and (e.startswith("field_") or e.startswith("var_")):
                                 env_map[e] = data[e]
 
-                    generated = subprocess.run([file_path], stdout=subprocess.PIPE, stderr=subprocess.DEVNULL, env=env_map)
+                    generated = subprocess.run([file_path], stdout=subprocess.PIPE, stderr=subprocess.DEVNULL, env=env_map, timeout=30)
                     return generated.stdout
                 else:
                     fh = open(file_path, "rb")
@@ -223,20 +223,24 @@ class Node:
 
     def __jobs(self):
         while self.should_run_jobs:
-            now = time.time()
-            
-            if now > self.last_announce + self.announce_interval*60:
-                self.announce()
-                
-            if self.page_refresh_interval > 0:
-                if now > self.last_page_refresh + self.page_refresh_interval*60:
-                    self.register_pages()
-                    self.last_page_refresh = time.time()
+            try:
+                now = time.time()
 
-            if self.file_refresh_interval > 0:
-                if now > self.last_file_refresh + self.file_refresh_interval*60:
-                    self.register_files()
-                    self.last_file_refresh = time.time()
+                if now > self.last_announce + self.announce_interval*60:
+                    self.announce()
+
+                if self.page_refresh_interval > 0:
+                    if now > self.last_page_refresh + self.page_refresh_interval*60:
+                        self.register_pages()
+                        self.last_page_refresh = time.time()
+
+                if self.file_refresh_interval > 0:
+                    if now > self.last_file_refresh + self.file_refresh_interval*60:
+                        self.register_files()
+                        self.last_file_refresh = time.time()
+
+            except Exception as e:
+                RNS.log("Error in Node job scheduler: "+str(e), RNS.LOG_ERROR)
 
             time.sleep(self.job_interval)
 
