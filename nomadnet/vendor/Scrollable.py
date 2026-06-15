@@ -138,7 +138,7 @@ class Scrollable(urwid.WidgetDecoration):
                                     first_visible = True
 
                                 if w.selectable():
-                                    ow.focus_item = pwi
+                                    ow.focus = pwi
 
                                     st = None
                                     nf = ow.get_focus()
