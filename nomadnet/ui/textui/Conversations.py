@@ -242,12 +242,23 @@ class ConversationsDisplay():
         except Exception:
             pass
 
-        nomadnet.Conversation.created_callback = lambda: self._wake(self.update_conversation_list)
+        nomadnet.Conversation.created_callback = lambda: self._wake(self._conversations_changed)
 
         try:
             self.app.ui.loop.set_alarm_in(30.0, self._refresh_sync_status)
         except Exception:
             pass
+
+    def _conversations_changed(self):
+        self.update_conversation_list()
+        # If the identity keys for the displayed conversation just
+        # became known, enable its editor without requiring the user
+        # to close and reopen the conversation.
+        if self.currently_displayed_conversation != None:
+            widget = ConversationsDisplay.cached_conversation_widgets.get(self.currently_displayed_conversation)
+            if widget != None:
+                widget.check_editor_allowed()
+                widget._update_peer_info()
 
     def _process_pending(self, data):
         while True:
@@ -1890,6 +1901,7 @@ class ConversationWidget(urwid.WidgetWrap):
                 self.sort_by_timestamp = False
                 self.pending_attachments = []
                 self.dialog_active = False
+                self.editor_allowed = None
 
                 self.update_message_widgets()
 
@@ -2187,14 +2199,17 @@ class ConversationWidget(urwid.WidgetWrap):
         g = self.app.ui.glyphs
         if self.frame:
             allowed = nomadnet.NomadNetworkApp.get_shared_instance().directory.is_known(bytes.fromhex(self.source_hash))
+            if allowed == self.editor_allowed:
+                return
+            self.editor_allowed = allowed
             if allowed:
                 self.frame.contents["footer"] = (self._build_footer(), None)
             else:
                 warning = urwid.AttrMap(
                     urwid.Padding(urwid.Text(
                         "\n"+g["info"]+"\n\nYou cannot currently message this peer, since its identity keys are not known. "
-                                       "The keys have been requested from the network and should arrive shortly, if available. "
-                                       "Close this conversation and reopen it to try again.\n\n"
+                                       "The keys have been requested from the network, and you will be able to send messages "
+                                       "as soon as they arrive.\n\n"
                                        "To query the network manually, select this conversation in the conversation list, "
                                        "press Ctrl-E, and use the query button.\n",
                         align=urwid.CENTER,

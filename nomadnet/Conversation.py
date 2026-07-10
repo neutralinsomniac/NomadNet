@@ -15,8 +15,9 @@ class Conversation:
     created_callback = None
 
     aspect_filter = "lxmf.delivery"
+    receive_path_responses = True
     @staticmethod
-    def received_announce(destination_hash, announced_identity, app_data):
+    def received_announce(destination_hash, announced_identity, app_data, announce_packet_hash=None, is_path_response=False):
         app = nomadnet.NomadNetworkApp.get_shared_instance()
 
         if not display_name_from_app_data(app_data):
@@ -32,15 +33,16 @@ class Conversation:
                 if Conversation.created_callback != None:
                     Conversation.created_callback()
 
-            # This reformats the new v0.5.0 announce data back to the expected format
-            # for nomadnets storage and other handling functions.
-            dn = LXMF.display_name_from_app_data(app_data)
-            app_data = b""
-            if dn != None: app_data = dn.encode("utf-8")
+            if not is_path_response:
+                # This reformats the new v0.5.0 announce data back to the expected format
+                # for nomadnets storage and other handling functions.
+                dn = LXMF.display_name_from_app_data(app_data)
+                app_data = b""
+                if dn != None: app_data = dn.encode("utf-8")
 
-            # Add the announce to the directory announce
-            # stream logger
-            app.directory.lxmf_announce_received(destination_hash, app_data)
+                # Add the announce to the directory announce
+                # stream logger
+                app.directory.lxmf_announce_received(destination_hash, app_data)
 
         else:
             RNS.log("Ignored announce from "+RNS.prettyhexrep(destination_hash), RNS.LOG_DEBUG)
@@ -202,14 +204,8 @@ class Conversation:
 
         self.__changed_callback = None
 
-        if not RNS.Identity.recall(bytes.fromhex(self.source_hash)):
+        if not self.__resolve_send_destination():
             RNS.Transport.request_path(bytes.fromhex(source_hash))
-
-        self.source_identity = RNS.Identity.recall(bytes.fromhex(self.source_hash))
-
-        if self.source_identity:
-            self.source_known = True
-            self.send_destination = RNS.Destination(self.source_identity, RNS.Destination.OUT, RNS.Destination.SINGLE, "lxmf", "delivery")
 
         if initiator:
             if not os.path.isdir(self.messages_path):
@@ -293,8 +289,18 @@ class Conversation:
     def register_changed_callback(self, callback):
         self.__changed_callback = callback
 
+    def __resolve_send_destination(self):
+        if self.send_destination == None:
+            self.source_identity = RNS.Identity.recall(bytes.fromhex(self.source_hash))
+
+            if self.source_identity:
+                self.source_known = True
+                self.send_destination = RNS.Destination(self.source_identity, RNS.Destination.OUT, RNS.Destination.SINGLE, "lxmf", "delivery")
+
+        return self.send_destination != None
+
     def send(self, content="", title="", fields=None):
-        if self.send_destination:
+        if self.__resolve_send_destination():
             dest = self.send_destination
             source = self.app.lxmf_destination
             desired_method = LXMF.LXMessage.DIRECT
@@ -324,11 +330,12 @@ class Conversation:
 
             return True
         else:
-            RNS.log("Destination is not known, cannot create LXMF Message.", RNS.LOG_VERBOSE)
+            RNS.log("Destination is not known, cannot create LXMF Message. Requesting path...", RNS.LOG_VERBOSE)
+            RNS.Transport.request_path(bytes.fromhex(self.source_hash))
             return False
 
     def paper_output(self, content="", title="", mode="print_qr"):
-        if self.send_destination:
+        if self.__resolve_send_destination():
             try:
                 dest = self.send_destination
                 source = self.app.lxmf_destination
