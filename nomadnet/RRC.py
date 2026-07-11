@@ -839,6 +839,46 @@ class RRCHub:
             self._append_history(target_room, msg)
             self._clean_history()
 
+    def _process_notice_text(self, text):
+        # Parse hub service notices (/list and /who replies) regardless of
+        # whether they arrived as a packet or a resource transfer. Returns
+        # True when the notice was consumed silently (auto /list or /who)
+        # and should not be recorded to the message log.
+        parsed = _parse_room_list_notice(text)
+        if parsed is not None:
+            with self._lock:
+                self.available_rooms = parsed
+                silent = self._silent_list_pending > 0
+                if silent:
+                    self._silent_list_pending -= 1
+            self.manager._notify_change(self)
+            if silent:
+                return True
+        parsed_who = _parse_who_notice(text)
+        if parsed_who is not None:
+            who_room, who_entries = parsed_who
+            with self._lock:
+                members = self.members.setdefault(who_room, set())
+                for nick, hash_hex in who_entries:
+                    try:
+                        hash_bytes = bytes.fromhex(hash_hex)
+                    except Exception:
+                        continue
+                    if nick is None:
+                        members.add(hash_bytes)
+                        continue
+                    for ph in members:
+                        if ph.startswith(hash_bytes):
+                            self.nicks[ph] = nick
+                            break
+                silent_who = who_room in self._silent_who_rooms
+                if silent_who:
+                    self._silent_who_rooms.discard(who_room)
+            self.manager._notify_change(self)
+            if silent_who:
+                return True
+        return False
+
     def get_messages(self, room, take_lock=True):
         if take_lock:
             with self._lock: buf = list(self.messages.get(room, []))
@@ -1090,39 +1130,8 @@ class RRCHub:
             room = env.get(K_ROOM)
             src  = env.get(K_SRC)
             if isinstance(body, str):
-                parsed = _parse_room_list_notice(body)
-                if parsed is not None:
-                    with self._lock:
-                        self.available_rooms = parsed
-                        silent = self._silent_list_pending > 0
-                        if silent:
-                            self._silent_list_pending -= 1
-                    self.manager._notify_change(self)
-                    if silent:
-                        return
-                parsed_who = _parse_who_notice(body)
-                if parsed_who is not None:
-                    who_room, who_entries = parsed_who
-                    with self._lock:
-                        members = self.members.setdefault(who_room, set())
-                        for nick, hash_hex in who_entries:
-                            try:
-                                hash_bytes = bytes.fromhex(hash_hex)
-                            except Exception:
-                                continue
-                            if nick is None:
-                                members.add(hash_bytes)
-                                continue
-                            for ph in members:
-                                if ph.startswith(hash_bytes):
-                                    self.nicks[ph] = nick
-                                    break
-                        silent_who = who_room in self._silent_who_rooms
-                        if silent_who:
-                            self._silent_who_rooms.discard(who_room)
-                    self.manager._notify_change(self)
-                    if silent_who:
-                        return
+                if self._process_notice_text(body):
+                    return
                 room_n = room.strip().lower() if isinstance(room, str) else None
                 if room_n is None and isinstance(body, str) and body.strip():
                     with self._lock:
@@ -1261,6 +1270,8 @@ class RRCHub:
                     with self._lock:
                         self.motd = text
                     self.manager._notify_change(self)
+                elif self._process_notice_text(text):
+                    return
                 msg = RRCMessage("notice", room, None, None, text, _now_ms())
                 self._record_notice(msg)
         except Exception as e:
