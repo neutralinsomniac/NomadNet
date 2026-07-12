@@ -1213,7 +1213,12 @@ class RRCHub:
                 size = getattr(resource, "size", 0)
         except Exception:
             return False
-        if size > 262144:
+        try:
+            max_size = int(getattr(self.manager.app, "rrc_max_accepted_resource_size", 262144))
+        except Exception:
+            max_size = 262144
+        if max_size <= 0 or size > max_size:
+            self._log("rejecting resource transfer of "+str(size)+" bytes (max accepted is "+str(max_size)+" bytes)", RNS.LOG_DEBUG)
             return False
         return True
 

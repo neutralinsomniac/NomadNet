@@ -155,6 +155,7 @@ class NomadNetworkApp:
 
         self.rrc_history_per_room_cap = 500
         self.rrc_filter_loaded_history = True
+        self.rrc_max_accepted_resource_size = 256*1024
         self.rrc_ephemeral_notices = 600
         self.rrc_nick_colors = True
         self.rrc_nick_colors_theme = None
@@ -994,6 +995,12 @@ class NomadNetworkApp:
                     except Exception: value = True
                     self.rrc_filter_loaded_history = value
 
+                if option == "max_accepted_resource_size":
+                    try: value = self.config["rrc"].as_int(option)
+                    except Exception: value = None
+                    if value is not None and value >= 0:
+                        self.rrc_max_accepted_resource_size = value*1024
+
                 if option == "ephemeral_notices":
                     try: value = self.config["rrc"].as_float(option)
                     except Exception: value = 0
@@ -1396,6 +1403,14 @@ history_per_room_cap = 500
 # and notice events when room history is
 # loaded.
 filter_loaded_history = yes
+
+# Maximum size in kilobytes of a resource
+# transfer that will be accepted from a
+# hub. Lower this on low-bandwidth links
+# to automatically reject transfers that
+# would take too long to receive. Set to
+# 0 to reject all resource transfers.
+max_accepted_resource_size = 256
 
 # You can choose whether notices and sys
 # messages persist indefinitely, or are
