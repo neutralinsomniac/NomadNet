@@ -38,16 +38,16 @@ def relative_time(timestamp):
     elif delta < 86400:
         h = int(delta / 3600)
         return str(h)+"h ago"
-    elif delta < 172800:
-        return "yesterday"
-    elif delta < 604800:
-        d = int(delta / 86400)
-        return str(d)+"d ago"
-    elif delta < 2592000:
-        w = int(delta / 604800)
-        return str(w)+"w ago"
     else:
-        return datetime.fromtimestamp(timestamp).strftime("%Y-%m-%d")
+        days = (datetime.fromtimestamp(now).date() - datetime.fromtimestamp(timestamp).date()).days
+        if days <= 1:
+            return "yesterday"
+        elif days < 7:
+            return str(days)+"d ago"
+        elif days < 30:
+            return str(days // 7)+"w ago"
+        else:
+            return datetime.fromtimestamp(timestamp).strftime("%Y-%m-%d")
 
 
 def _format_size(size):
