@@ -1939,13 +1939,14 @@ def pretty_date(time=False):
     from datetime import datetime
     now = datetime.now()
     if type(time) is int:
-        diff = now - datetime.fromtimestamp(time)
+        then = datetime.fromtimestamp(time)
     elif isinstance(time,datetime):
-        diff = now - time
+        then = time
     elif not time:
-        diff = now - now
+        then = now
+    diff = now - then
     second_diff = diff.seconds
-    day_diff = diff.days
+    day_diff = (now.date() - then.date()).days
 
     if day_diff < 0:
         return ''
